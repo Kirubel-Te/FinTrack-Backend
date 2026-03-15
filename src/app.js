@@ -2,7 +2,7 @@ import express from 'express'
 import cors from 'cors'
 import helmet from 'helmet'
 import morgan from 'morgan'
-import authRoutes from './routes/auth.route.js'
+import router from './routes/auth.route.js'
 
 const app = express()
 
@@ -15,6 +15,6 @@ app.get('/',(req,res) => {
     res.status(200).json({message: 'Welcome to FinTrack API'})
 })
 
-app.use('/api/auth', authRoutes)
+app.use('/api/auth', router)
 
 export default app

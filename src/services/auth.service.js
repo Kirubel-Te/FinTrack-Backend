@@ -31,7 +31,7 @@ export async function registerUser({ email, password }) {
 		}
 	});
 
-	const token = generateToken({ userId: user.id, email: user.email });
+	const token = generateToken({ userId: user.id });
 
 	return {
 		ok: true,
@@ -68,7 +68,7 @@ export async function loginUser({ email, password }) {
 		};
 	}
 
-	const token = generateToken({ userId: user.id, email: user.email });
+	const token = generateToken({ userId: user.id });
 
 	return {
 		ok: true,
