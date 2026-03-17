@@ -8,6 +8,15 @@ export async function register(req, res) {
             return res.status(400).json({ message: 'First name, last name, email, and password are required' });
         }
 
+        if (
+            typeof firstName !== 'string' ||
+            typeof lastName !== 'string' ||
+            typeof email !== 'string' ||
+            typeof password !== 'string'
+        ) {
+            return res.status(400).json({ message: 'First name, last name, email, and password must be strings' });
+        }
+
         if (password.length < 6) {
             return res.status(400).json({ message: 'Password must be at least 6 characters' });
         }
@@ -20,6 +29,7 @@ export async function register(req, res) {
 
         return res.status(result.status).json(result.data);
     } catch (error) {
+        console.error('register error:', error);
         return res.status(500).json({ message: 'Failed to register user' });
     }
 }
@@ -30,6 +40,10 @@ export async function login(req, res) {
 
         if (!email || !password) {
             return res.status(400).json({ message: 'Email and password are required' });
+        }
+
+        if (typeof email !== 'string' || typeof password !== 'string') {
+            return res.status(400).json({ message: 'Email and password must be strings' });
         }
 
         const result = await loginUser({ email, password });
