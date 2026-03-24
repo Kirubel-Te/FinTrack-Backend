@@ -5,7 +5,7 @@
 
 */
 -- DropForeignKey
-ALTER TABLE "RefreshToken" DROP CONSTRAINT "RefreshToken_userId_fkey";
+ALTER TABLE IF EXISTS "RefreshToken" DROP CONSTRAINT IF EXISTS "RefreshToken_userId_fkey";
 
 -- DropTable
-DROP TABLE "RefreshToken";
+DROP TABLE IF EXISTS "RefreshToken";
