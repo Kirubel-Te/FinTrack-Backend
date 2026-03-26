@@ -45,11 +45,40 @@ function listItems(items, { where, orderBy, skip = 0, take = items.length }) {
 const prismaMock = {
     income: {
         findMany: vi.fn(async (args) => listItems(db.incomes, args)),
-        count: vi.fn(async ({ where }) => applyWhere(db.incomes, where).length)
+        count: vi.fn(async ({ where }) => applyWhere(db.incomes, where).length),
+        aggregate: vi.fn(async ({ where }) => {
+            const total = applyWhere(db.incomes, where).reduce((sum, item) => sum + Number(item.amount), 0);
+            return {
+                _sum: {
+                    amount: total
+                }
+            };
+        })
     },
     expense: {
         findMany: vi.fn(async (args) => listItems(db.expenses, args)),
-        count: vi.fn(async ({ where }) => applyWhere(db.expenses, where).length)
+        count: vi.fn(async ({ where }) => applyWhere(db.expenses, where).length),
+        aggregate: vi.fn(async ({ where }) => {
+            const total = applyWhere(db.expenses, where).reduce((sum, item) => sum + Number(item.amount), 0);
+            return {
+                _sum: {
+                    amount: total
+                }
+            };
+        }),
+        groupBy: vi.fn(async ({ where }) => {
+            const grouped = new Map();
+
+            for (const item of applyWhere(db.expenses, where)) {
+                const current = grouped.get(item.category) ?? 0;
+                grouped.set(item.category, current + Number(item.amount));
+            }
+
+            return Array.from(grouped.entries()).map(([category, total]) => ({
+                category,
+                _sum: { amount: total }
+            }));
+        })
     },
     user: {
         findUnique: vi.fn(),
@@ -272,5 +301,117 @@ describe('GET /api/v1/expenses', () => {
         expect(response.status).toBe(400);
         expect(response.body.success).toBe(false);
         expect(response.body.message).toContain('endDate must be valid');
+    });
+});
+
+describe('GET /api/v1/reports', () => {
+    beforeEach(() => {
+        db.incomes = [];
+        db.expenses = [];
+        vi.clearAllMocks();
+    });
+
+    it('returns financial summary for authenticated user', async () => {
+        db.incomes = [
+            { id: 'in-1', userId: 'user-1', category: 'salary', amount: 3000, date: '2026-01-01T00:00:00.000Z' },
+            { id: 'in-2', userId: 'user-1', category: 'bonus', amount: 500, date: '2026-01-10T00:00:00.000Z' },
+            { id: 'in-3', userId: 'user-2', category: 'salary', amount: 1000, date: '2026-01-10T00:00:00.000Z' }
+        ];
+
+        db.expenses = [
+            { id: 'ex-1', userId: 'user-1', category: 'rent', amount: 1200, date: '2026-01-05T00:00:00.000Z' },
+            { id: 'ex-2', userId: 'user-1', category: 'food', amount: 300, date: '2026-01-07T00:00:00.000Z' },
+            { id: 'ex-3', userId: 'user-2', category: 'food', amount: 900, date: '2026-01-07T00:00:00.000Z' }
+        ];
+
+        const response = await auth(request(app).get('/api/v1/reports/summary'));
+
+        expect(response.status).toBe(200);
+        expect(response.body).toEqual({
+            success: true,
+            data: {
+                totalIncome: 3500,
+                totalExpense: 1500,
+                balance: 2000
+            }
+        });
+
+        expect(prismaMock.income.aggregate).toHaveBeenCalledWith({
+            where: { userId: 'user-1' },
+            _sum: { amount: true }
+        });
+
+        expect(prismaMock.expense.aggregate).toHaveBeenCalledWith({
+            where: { userId: 'user-1' },
+            _sum: { amount: true }
+        });
+    });
+
+    it('returns monthly summary for provided month', async () => {
+        db.incomes = [
+            { id: 'in-1', userId: 'user-1', category: 'salary', amount: 2500, date: '2026-01-03T00:00:00.000Z' },
+            { id: 'in-2', userId: 'user-1', category: 'bonus', amount: 200, date: '2026-02-03T00:00:00.000Z' }
+        ];
+
+        db.expenses = [
+            { id: 'ex-1', userId: 'user-1', category: 'rent', amount: 1000, date: '2026-01-12T00:00:00.000Z' },
+            { id: 'ex-2', userId: 'user-1', category: 'food', amount: 300, date: '2026-02-12T00:00:00.000Z' }
+        ];
+
+        const response = await auth(
+            request(app).get('/api/v1/reports/monthly').query({ month: '2026-01' })
+        );
+
+        expect(response.status).toBe(200);
+        expect(response.body).toEqual({
+            success: true,
+            data: {
+                month: '2026-01',
+                totalIncome: 2500,
+                totalExpense: 1000,
+                balance: 1500
+            }
+        });
+
+        const incomeWhere = prismaMock.income.aggregate.mock.calls[0][0].where;
+        expect(incomeWhere.userId).toBe('user-1');
+        expect(incomeWhere.date.gte.toISOString()).toBe('2026-01-01T00:00:00.000Z');
+        expect(incomeWhere.date.lte.toISOString()).toBe('2026-01-31T23:59:59.999Z');
+    });
+
+    it('returns 400 for invalid monthly query format', async () => {
+        const response = await auth(
+            request(app).get('/api/v1/reports/monthly').query({ month: '2026/01' })
+        );
+
+        expect(response.status).toBe(400);
+        expect(response.body.success).toBe(false);
+        expect(response.body.message).toContain('month must be in YYYY-MM format');
+    });
+
+    it('returns category aggregation for expenses', async () => {
+        db.expenses = [
+            { id: 'ex-1', userId: 'user-1', category: 'food', amount: 150, date: '2026-01-01T00:00:00.000Z' },
+            { id: 'ex-2', userId: 'user-1', category: 'food', amount: 50, date: '2026-01-03T00:00:00.000Z' },
+            { id: 'ex-3', userId: 'user-1', category: 'rent', amount: 900, date: '2026-01-02T00:00:00.000Z' },
+            { id: 'ex-4', userId: 'user-2', category: 'food', amount: 1000, date: '2026-01-03T00:00:00.000Z' }
+        ];
+
+        const response = await auth(request(app).get('/api/v1/reports/categories'));
+
+        expect(response.status).toBe(200);
+        expect(response.body).toEqual({
+            success: true,
+            data: [
+                { category: 'food', total: 200 },
+                { category: 'rent', total: 900 }
+            ]
+        });
+
+        expect(prismaMock.expense.groupBy).toHaveBeenCalledWith({
+            by: ['category'],
+            where: { userId: 'user-1' },
+            _sum: { amount: true }
+        });
     });
 });

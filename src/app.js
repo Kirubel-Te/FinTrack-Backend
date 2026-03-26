@@ -5,6 +5,7 @@ import morgan from 'morgan'
 import router from './routes/auth.route.js'
 import incomeRoutes from './routes/income.routes.js'
 import expenseRoutes from './routes/expense.routes.js'
+import reportRoutes from './routes/report.routes.js'
 
 const app = express()
 
@@ -20,5 +21,6 @@ app.get('/',(req,res) => {
 app.use('/api/auth', router)
 app.use('/api/v1/incomes', incomeRoutes)
 app.use('/api/v1/expenses', expenseRoutes)
+app.use('/api/v1/reports', reportRoutes)
 
 export default app
