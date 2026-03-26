@@ -1,4 +1,8 @@
 import prisma from '../config/prisma.js';
+import {
+    buildPaginationMeta,
+    buildTransactionListQuery
+} from './transaction-list-query.service.js';
 
 function parseAndValidateDate(dateValue) {
     if (!dateValue) {
@@ -70,53 +74,8 @@ function validateCreateOrUpdatePayload(payload, { partial = false } = {}) {
     return { ok: true, data };
 }
 
-function buildListQuery({ page = 1, limit = 10, startDate, endDate, category }) {
-    const parsedPage = Number.parseInt(page, 10);
-    const parsedLimit = Number.parseInt(limit, 10);
-
-    const safePage = Number.isNaN(parsedPage) || parsedPage < 1 ? 1 : parsedPage;
-    const safeLimit = Number.isNaN(parsedLimit) || parsedLimit < 1 ? 10 : Math.min(parsedLimit, 100);
-
-    const where = {};
-
-    if (category && typeof category === 'string' && category.trim()) {
-        where.category = category.trim();
-    }
-
-    if (startDate || endDate) {
-        where.date = {};
-
-        if (startDate) {
-            const start = new Date(startDate);
-            if (Number.isNaN(start.getTime())) {
-                return { ok: false, status: 400, message: 'startDate must be valid' };
-            }
-            where.date.gte = start;
-        }
-
-        if (endDate) {
-            const end = new Date(endDate);
-            if (Number.isNaN(end.getTime())) {
-                return { ok: false, status: 400, message: 'endDate must be valid' };
-            }
-            where.date.lte = end;
-        }
-    }
-
-    return {
-        ok: true,
-        query: {
-            page: safePage,
-            limit: safeLimit,
-            skip: (safePage - 1) * safeLimit,
-            take: safeLimit,
-            where
-        }
-    };
-}
-
 export async function listExpenses(userId, queryParams) {
-    const listQuery = buildListQuery(queryParams);
+    const listQuery = buildTransactionListQuery(userId, queryParams);
 
     if (!listQuery.ok) {
         return listQuery;
@@ -124,30 +83,21 @@ export async function listExpenses(userId, queryParams) {
 
     const { where, skip, take, page, limit } = listQuery.query;
 
-    const userScopedWhere = {
-        ...where,
-        userId
-    };
-
     const [items, total] = await Promise.all([
         prisma.expense.findMany({
-            where: userScopedWhere,
+            where,
             orderBy: { date: 'desc' },
             skip,
             take
         }),
-        prisma.expense.count({ where: userScopedWhere })
+        prisma.expense.count({ where })
     ]);
 
     return {
         ok: true,
         status: 200,
         data: items,
-        meta: {
-            page,
-            limit,
-            total
-        }
+        meta: buildPaginationMeta({ page, limit, total })
     };
 }
 

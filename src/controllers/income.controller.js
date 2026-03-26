@@ -5,6 +5,7 @@ import {
     listIncomes,
     updateIncome
 } from '../services/income.service.js';
+import { parseTransactionListQueryParams } from '../utils/list-query.js';
 
 function sendError(res, status, message) {
     return res.status(status).json({
@@ -15,7 +16,13 @@ function sendError(res, status, message) {
 
 export async function getIncomes(req, res) {
     try {
-        const result = await listIncomes(req.user.id, req.query);
+        const parsedQuery = parseTransactionListQueryParams(req.query);
+
+        if (!parsedQuery.ok) {
+            return sendError(res, parsedQuery.status || 400, parsedQuery.message || 'Invalid query params');
+        }
+
+        const result = await listIncomes(req.user.id, parsedQuery.data);
 
         if (!result.ok) {
             return sendError(res, result.status || 400, result.message || 'Failed to fetch incomes');
@@ -27,7 +34,8 @@ export async function getIncomes(req, res) {
             meta: {
                 page: result.meta.page,
                 limit: result.meta.limit,
-                total: result.meta.total
+                total: result.meta.total,
+                totalPages: result.meta.totalPages
             }
         });
     } catch (error) {
