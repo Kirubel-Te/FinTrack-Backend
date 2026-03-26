@@ -19,6 +19,7 @@ app.get('/',(req,res) => {
 })
 
 app.use('/api/auth', router)
+app.use('/api/v1/auth', router)
 app.use('/api/v1/incomes', incomeRoutes)
 app.use('/api/v1/expenses', expenseRoutes)
 app.use('/api/v1/reports', reportRoutes)

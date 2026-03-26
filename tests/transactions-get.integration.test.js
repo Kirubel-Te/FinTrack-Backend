@@ -1,10 +1,35 @@
 import request from 'supertest';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import crypto from 'crypto';
 
 const db = {
+    users: [],
     incomes: [],
-    expenses: []
+    expenses: [],
+    refreshTokens: []
 };
+
+let idCounter = 1;
+
+function nextId(prefix) {
+    const value = `${prefix}-${idCounter}`;
+    idCounter += 1;
+    return value;
+}
+
+function selectFields(record, select) {
+    if (!select) {
+        return { ...record };
+    }
+
+    return Object.keys(select).reduce((acc, key) => {
+        if (select[key]) {
+            acc[key] = record[key];
+        }
+
+        return acc;
+    }, {});
+}
 
 function applyWhere(items, where = {}) {
     return items.filter((item) => {
@@ -81,8 +106,85 @@ const prismaMock = {
         })
     },
     user: {
-        findUnique: vi.fn(),
-        create: vi.fn()
+        findUnique: vi.fn(async ({ where, select }) => {
+            let found = null;
+
+            if (where.email) {
+                found = db.users.find((item) => item.email === where.email) || null;
+            } else if (where.id) {
+                found = db.users.find((item) => item.id === where.id) || null;
+            }
+
+            return found ? selectFields(found, select) : null;
+        }),
+        create: vi.fn(async ({ data, select }) => {
+            const created = {
+                id: nextId('user'),
+                createdAt: new Date(),
+                ...data
+            };
+
+            db.users.push(created);
+
+            return selectFields(created, select);
+        })
+    },
+    refreshToken: {
+        create: vi.fn(async ({ data }) => {
+            const created = {
+                id: nextId('rt'),
+                createdAt: new Date(),
+                revokedAt: null,
+                ...data
+            };
+
+            db.refreshTokens.push(created);
+            return created;
+        }),
+        findUnique: vi.fn(async ({ where }) => {
+            if (!where.tokenHash) {
+                return null;
+            }
+
+            return db.refreshTokens.find((item) => item.tokenHash === where.tokenHash) || null;
+        }),
+        update: vi.fn(async ({ where, data }) => {
+            const currentIndex = db.refreshTokens.findIndex((item) => item.id === where.id);
+
+            if (currentIndex < 0) {
+                throw new Error('Refresh token not found');
+            }
+
+            db.refreshTokens[currentIndex] = {
+                ...db.refreshTokens[currentIndex],
+                ...data
+            };
+
+            return db.refreshTokens[currentIndex];
+        }),
+        updateMany: vi.fn(async ({ where, data }) => {
+            let count = 0;
+
+            db.refreshTokens = db.refreshTokens.map((item) => {
+                const tokenMatches = where.tokenHash ? item.tokenHash === where.tokenHash : true;
+                const revokedMatches =
+                    Object.prototype.hasOwnProperty.call(where, 'revokedAt')
+                        ? item.revokedAt === where.revokedAt
+                        : true;
+
+                if (tokenMatches && revokedMatches) {
+                    count += 1;
+                    return {
+                        ...item,
+                        ...data
+                    };
+                }
+
+                return item;
+            });
+
+            return { count };
+        })
     }
 };
 
@@ -90,17 +192,69 @@ vi.mock('../src/config/prisma.js', () => ({
     default: prismaMock
 }));
 
-const verifyTokenMock = vi.fn((token) => {
+const tokenFactory = {
+    accessSequence: 1,
+    refreshSequence: 1
+};
+
+const generateAccessTokenMock = vi.fn(({ userId }) => {
+    const token = `access-${userId}-${tokenFactory.accessSequence}`;
+    tokenFactory.accessSequence += 1;
+    return token;
+});
+
+const generateRefreshTokenMock = vi.fn(({ userId }) => {
+    const token = `refresh-${userId}-${tokenFactory.refreshSequence}`;
+    tokenFactory.refreshSequence += 1;
+    return token;
+});
+
+function extractUserIdFromToken(token, prefix) {
+    if (typeof token !== 'string' || !token.startsWith(prefix)) {
+        return null;
+    }
+
+    const withoutPrefix = token.slice(prefix.length);
+    const lastDashIndex = withoutPrefix.lastIndexOf('-');
+
+    if (lastDashIndex < 1) {
+        return null;
+    }
+
+    return withoutPrefix.slice(0, lastDashIndex);
+}
+
+const verifyAccessTokenMock = vi.fn((token) => {
     if (token === 'valid-token') {
         return { userId: 'user-1' };
+    }
+
+    const userId = extractUserIdFromToken(token, 'access-');
+
+    if (userId) {
+        return { userId };
+    }
+
+    return null;
+});
+
+const verifyRefreshTokenMock = vi.fn((token) => {
+    const userId = extractUserIdFromToken(token, 'refresh-');
+
+    if (userId) {
+        return { userId };
     }
 
     return null;
 });
 
 vi.mock('../src/utils/jwt.js', () => ({
-    verifyToken: verifyTokenMock,
-    generateToken: vi.fn(() => 'mock-token')
+    generateAccessToken: generateAccessTokenMock,
+    generateRefreshToken: generateRefreshTokenMock,
+    verifyAccessToken: verifyAccessTokenMock,
+    verifyRefreshToken: verifyRefreshTokenMock,
+    generateToken: generateAccessTokenMock,
+    verifyToken: verifyAccessTokenMock
 }));
 
 const { default: app } = await import('../src/app.js');
@@ -111,8 +265,12 @@ function auth(requestBuilder) {
 
 describe('GET /api/v1/incomes', () => {
     beforeEach(() => {
+        db.users = [];
         db.incomes = [];
         db.expenses = [];
+        db.refreshTokens = [];
+        tokenFactory.accessSequence = 1;
+        tokenFactory.refreshSequence = 1;
         vi.clearAllMocks();
     });
 
@@ -235,8 +393,12 @@ describe('GET /api/v1/incomes', () => {
 
 describe('GET /api/v1/expenses', () => {
     beforeEach(() => {
+        db.users = [];
         db.incomes = [];
         db.expenses = [];
+        db.refreshTokens = [];
+        tokenFactory.accessSequence = 1;
+        tokenFactory.refreshSequence = 1;
         vi.clearAllMocks();
     });
 
@@ -306,8 +468,12 @@ describe('GET /api/v1/expenses', () => {
 
 describe('GET /api/v1/reports', () => {
     beforeEach(() => {
+        db.users = [];
         db.incomes = [];
         db.expenses = [];
+        db.refreshTokens = [];
+        tokenFactory.accessSequence = 1;
+        tokenFactory.refreshSequence = 1;
         vi.clearAllMocks();
     });
 
@@ -413,5 +579,99 @@ describe('GET /api/v1/reports', () => {
             where: { userId: 'user-1' },
             _sum: { amount: true }
         });
+    });
+});
+
+describe('POST /api/v1/auth refresh flow', () => {
+    beforeEach(() => {
+        db.users = [];
+        db.incomes = [];
+        db.expenses = [];
+        db.refreshTokens = [];
+        tokenFactory.accessSequence = 1;
+        tokenFactory.refreshSequence = 1;
+        vi.clearAllMocks();
+    });
+
+    it('returns access and refresh tokens on register and login', async () => {
+        const registerResponse = await request(app).post('/api/v1/auth/register').send({
+            firstName: 'Ada',
+            lastName: 'Lovelace',
+            email: 'ada@example.com',
+            password: 'secret123'
+        });
+
+        expect(registerResponse.status).toBe(201);
+        expect(registerResponse.body.accessToken).toBeTruthy();
+        expect(registerResponse.body.refreshToken).toBeTruthy();
+
+        const loginResponse = await request(app).post('/api/v1/auth/login').send({
+            email: 'ada@example.com',
+            password: 'secret123'
+        });
+
+        expect(loginResponse.status).toBe(200);
+        expect(loginResponse.body.accessToken).toBeTruthy();
+        expect(loginResponse.body.refreshToken).toBeTruthy();
+    });
+
+    it('refreshes token and rotates refresh token when current one is valid', async () => {
+        const currentRefreshToken = 'refresh-user-1-1';
+        const tokenHash = crypto.createHash('sha256').update(currentRefreshToken).digest('hex');
+
+        db.refreshTokens.push({
+            id: 'rt-1',
+            tokenHash,
+            userId: 'user-1',
+            expiresAt: new Date('2099-01-01T00:00:00.000Z'),
+            revokedAt: null,
+            createdAt: new Date()
+        });
+
+        const response = await request(app).post('/api/v1/auth/refresh').send({
+            refreshToken: currentRefreshToken
+        });
+
+        expect(response.status).toBe(200);
+        expect(response.body.success).toBe(true);
+        expect(response.body.data.accessToken).toBeTruthy();
+        expect(response.body.data.refreshToken).toBeTruthy();
+
+        const originalToken = db.refreshTokens.find((item) => item.id === 'rt-1');
+        expect(originalToken.revokedAt).toBeTruthy();
+        expect(db.refreshTokens.length).toBe(2);
+    });
+
+    it('returns 401 for invalid refresh token', async () => {
+        const response = await request(app).post('/api/v1/auth/refresh').send({
+            refreshToken: 'invalid-refresh-token'
+        });
+
+        expect(response.status).toBe(401);
+        expect(response.body.success).toBe(false);
+    });
+
+    it('invalidates refresh token on logout', async () => {
+        const tokenToRevoke = 'refresh-user-1-5';
+        const tokenHash = crypto.createHash('sha256').update(tokenToRevoke).digest('hex');
+
+        db.refreshTokens.push({
+            id: 'rt-logout',
+            tokenHash,
+            userId: 'user-1',
+            expiresAt: new Date('2099-01-01T00:00:00.000Z'),
+            revokedAt: null,
+            createdAt: new Date()
+        });
+
+        const response = await request(app).post('/api/v1/auth/logout').send({
+            refreshToken: tokenToRevoke
+        });
+
+        expect(response.status).toBe(200);
+        expect(response.body.success).toBe(true);
+
+        const revokedToken = db.refreshTokens.find((item) => item.id === 'rt-logout');
+        expect(revokedToken.revokedAt).toBeTruthy();
     });
 });

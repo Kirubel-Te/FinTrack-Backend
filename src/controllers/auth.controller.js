@@ -1,4 +1,26 @@
-import { getUserPublicById, loginUser, registerUser } from '../services/auth.service.js';
+import {
+    getUserPublicById,
+    loginUser,
+    logoutUser,
+    refreshAuthToken,
+    registerUser
+} from '../services/auth.service.js';
+
+function getRefreshTokenFromRequest(req) {
+    const bodyToken = req.body?.refreshToken;
+
+    if (bodyToken && typeof bodyToken === 'string') {
+        return bodyToken;
+    }
+
+    const authHeader = req.headers.authorization;
+
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+        return authHeader.split(' ')[1];
+    }
+
+    return null;
+}
 
 export async function register(req, res) {
     try {
@@ -69,6 +91,54 @@ export async function me(req, res) {
         return res.status(200).json(result.data);
     } catch (error) {
         return res.status(500).json({ message: 'Failed to fetch current user' });
+    }
+}
+
+export async function refresh(req, res) {
+    try {
+        const refreshToken = getRefreshTokenFromRequest(req);
+        const result = await refreshAuthToken(refreshToken);
+
+        if (!result.ok) {
+            return res.status(result.status).json({
+                success: false,
+                message: result.message
+            });
+        }
+
+        return res.status(result.status).json({
+            success: true,
+            data: result.data
+        });
+    } catch (error) {
+        return res.status(500).json({
+            success: false,
+            message: 'Failed to refresh token'
+        });
+    }
+}
+
+export async function logout(req, res) {
+    try {
+        const refreshToken = getRefreshTokenFromRequest(req);
+        const result = await logoutUser(refreshToken);
+
+        if (!result.ok) {
+            return res.status(result.status).json({
+                success: false,
+                message: result.message
+            });
+        }
+
+        return res.status(result.status).json({
+            success: true,
+            data: result.data
+        });
+    } catch (error) {
+        return res.status(500).json({
+            success: false,
+            message: 'Failed to logout user'
+        });
     }
 }
 
