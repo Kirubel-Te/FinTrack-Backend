@@ -5,27 +5,15 @@ import {
     listExpenses,
     updateExpense
 } from '../services/expense.service.js';
-import { parseTransactionListQueryParams } from '../utils/list-query.js';
+import { AppError } from '../errors/app-error.js';
 
-function sendError(res, status, message) {
-    return res.status(status).json({
-        success: false,
-        message
-    });
-}
-
-export async function getExpenses(req, res) {
+export async function getExpenses(req, res, next) {
     try {
-        const parsedQuery = parseTransactionListQueryParams(req.query);
-
-        if (!parsedQuery.ok) {
-            return sendError(res, parsedQuery.status || 400, parsedQuery.message || 'Invalid query params');
-        }
-
-        const result = await listExpenses(req.user.id, parsedQuery.data);
+        const query = req.validated?.query || req.query;
+        const result = await listExpenses(req.user.id, query);
 
         if (!result.ok) {
-            return sendError(res, result.status || 400, result.message || 'Failed to fetch expenses');
+            throw new AppError(result.message || 'Failed to fetch expenses', result.status || 400);
         }
 
         return res.status(200).json({
@@ -39,16 +27,16 @@ export async function getExpenses(req, res) {
             }
         });
     } catch (error) {
-        return sendError(res, 500, 'Failed to fetch expenses');
+        return next(error);
     }
 }
 
-export async function getExpense(req, res) {
+export async function getExpense(req, res, next) {
     try {
         const result = await getExpenseById(req.user.id, req.params.id);
 
         if (!result.ok) {
-            return sendError(res, result.status || 404, result.message || 'Expense not found');
+            throw new AppError(result.message || 'Expense not found', result.status || 404);
         }
 
         return res.status(200).json({
@@ -56,16 +44,16 @@ export async function getExpense(req, res) {
             data: result.data
         });
     } catch (error) {
-        return sendError(res, 500, 'Failed to fetch expense');
+        return next(error);
     }
 }
 
-export async function createExpenseHandler(req, res) {
+export async function createExpenseHandler(req, res, next) {
     try {
         const result = await createExpense(req.user.id, req.body);
 
         if (!result.ok) {
-            return sendError(res, result.status || 400, result.message || 'Failed to create expense');
+            throw new AppError(result.message || 'Failed to create expense', result.status || 400);
         }
 
         return res.status(201).json({
@@ -73,16 +61,16 @@ export async function createExpenseHandler(req, res) {
             data: result.data
         });
     } catch (error) {
-        return sendError(res, 500, 'Failed to create expense');
+        return next(error);
     }
 }
 
-export async function updateExpenseHandler(req, res) {
+export async function updateExpenseHandler(req, res, next) {
     try {
         const result = await updateExpense(req.user.id, req.params.id, req.body);
 
         if (!result.ok) {
-            return sendError(res, result.status || 400, result.message || 'Failed to update expense');
+            throw new AppError(result.message || 'Failed to update expense', result.status || 400);
         }
 
         return res.status(200).json({
@@ -90,16 +78,16 @@ export async function updateExpenseHandler(req, res) {
             data: result.data
         });
     } catch (error) {
-        return sendError(res, 500, 'Failed to update expense');
+        return next(error);
     }
 }
 
-export async function deleteExpenseHandler(req, res) {
+export async function deleteExpenseHandler(req, res, next) {
     try {
         const result = await deleteExpense(req.user.id, req.params.id);
 
         if (!result.ok) {
-            return sendError(res, result.status || 404, result.message || 'Failed to delete expense');
+            throw new AppError(result.message || 'Failed to delete expense', result.status || 404);
         }
 
         return res.status(200).json({
@@ -107,6 +95,6 @@ export async function deleteExpenseHandler(req, res) {
             data: result.data
         });
     } catch (error) {
-        return sendError(res, 500, 'Failed to delete expense');
+        return next(error);
     }
 }

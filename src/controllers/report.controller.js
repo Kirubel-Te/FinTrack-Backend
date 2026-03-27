@@ -3,20 +3,14 @@ import {
     getMonthlySummaryReport,
     getSummaryReport
 } from '../services/report.service.js';
+import { AppError } from '../errors/app-error.js';
 
-function sendError(res, status, message) {
-    return res.status(status).json({
-        success: false,
-        message
-    });
-}
-
-export async function getSummary(req, res) {
+export async function getSummary(req, res, next) {
     try {
         const result = await getSummaryReport(req.user.id);
 
         if (!result.ok) {
-            return sendError(res, result.status || 400, result.message || 'Failed to fetch summary');
+            throw new AppError(result.message || 'Failed to fetch summary', result.status || 400);
         }
 
         return res.status(200).json({
@@ -24,16 +18,17 @@ export async function getSummary(req, res) {
             data: result.data
         });
     } catch (error) {
-        return sendError(res, 500, 'Failed to fetch summary');
+        return next(error);
     }
 }
 
-export async function getMonthlySummary(req, res) {
+export async function getMonthlySummary(req, res, next) {
     try {
-        const result = await getMonthlySummaryReport(req.user.id, req.query.month);
+        const month = req.validated?.query?.month || req.query.month;
+        const result = await getMonthlySummaryReport(req.user.id, month);
 
         if (!result.ok) {
-            return sendError(res, result.status || 400, result.message || 'Failed to fetch monthly summary');
+            throw new AppError(result.message || 'Failed to fetch monthly summary', result.status || 400);
         }
 
         return res.status(200).json({
@@ -41,16 +36,16 @@ export async function getMonthlySummary(req, res) {
             data: result.data
         });
     } catch (error) {
-        return sendError(res, 500, 'Failed to fetch monthly summary');
+        return next(error);
     }
 }
 
-export async function getCategories(req, res) {
+export async function getCategories(req, res, next) {
     try {
         const result = await getExpenseCategoriesReport(req.user.id);
 
         if (!result.ok) {
-            return sendError(res, result.status || 400, result.message || 'Failed to fetch category report');
+            throw new AppError(result.message || 'Failed to fetch category report', result.status || 400);
         }
 
         return res.status(200).json({
@@ -58,6 +53,6 @@ export async function getCategories(req, res) {
             data: result.data
         });
     } catch (error) {
-        return sendError(res, 500, 'Failed to fetch category report');
+        return next(error);
     }
 }

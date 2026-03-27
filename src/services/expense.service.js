@@ -4,74 +4,26 @@ import {
     buildTransactionListQuery
 } from './transaction-list-query.service.js';
 
-function parseAndValidateDate(dateValue) {
-    if (!dateValue) {
-        return { ok: false, message: 'Date is required' };
-    }
-
-    const parsed = new Date(dateValue);
-
-    if (Number.isNaN(parsed.getTime())) {
-        return { ok: false, message: 'Date must be valid' };
-    }
-
-    return { ok: true, value: parsed };
-}
-
-function validateCreateOrUpdatePayload(payload, { partial = false } = {}) {
-    const hasAmount = Object.prototype.hasOwnProperty.call(payload, 'amount');
-    const hasCategory = Object.prototype.hasOwnProperty.call(payload, 'category');
-    const hasDate = Object.prototype.hasOwnProperty.call(payload, 'date');
-    const hasDescription = Object.prototype.hasOwnProperty.call(payload, 'description');
-
-    if (!partial && (!hasAmount || !hasCategory || !hasDate)) {
-        return {
-            ok: false,
-            status: 400,
-            message: 'Amount, category, and date are required'
-        };
-    }
-
+function normalizeExpensePayload(payload) {
     const data = {};
 
-    if (hasAmount) {
-        const numericAmount = Number(payload.amount);
-        if (!Number.isFinite(numericAmount) || numericAmount <= 0) {
-            return { ok: false, status: 400, message: 'Amount must be a positive number' };
-        }
-        data.amount = numericAmount;
+    if (Object.prototype.hasOwnProperty.call(payload, 'amount')) {
+        data.amount = Number(payload.amount);
     }
 
-    if (hasCategory) {
-        if (typeof payload.category !== 'string' || !payload.category.trim()) {
-            return { ok: false, status: 400, message: 'Category must be non-empty' };
-        }
+    if (Object.prototype.hasOwnProperty.call(payload, 'category')) {
         data.category = payload.category.trim();
     }
 
-    if (hasDate) {
-        const parsedDate = parseAndValidateDate(payload.date);
-        if (!parsedDate.ok) {
-            return { ok: false, status: 400, message: parsedDate.message };
-        }
-        data.date = parsedDate.value;
+    if (Object.prototype.hasOwnProperty.call(payload, 'date')) {
+        data.date = payload.date instanceof Date ? payload.date : new Date(payload.date);
     }
 
-    if (hasDescription) {
-        if (payload.description === null || payload.description === undefined || payload.description === '') {
-            data.description = null;
-        } else if (typeof payload.description !== 'string') {
-            return { ok: false, status: 400, message: 'Description must be a string when provided' };
-        } else {
-            data.description = payload.description.trim() || null;
-        }
+    if (Object.prototype.hasOwnProperty.call(payload, 'description')) {
+        data.description = payload.description;
     }
 
-    if (partial && Object.keys(data).length === 0) {
-        return { ok: false, status: 400, message: 'At least one field is required to update' };
-    }
-
-    return { ok: true, data };
+    return data;
 }
 
 export async function listExpenses(userId, queryParams) {
@@ -117,14 +69,11 @@ export async function getExpenseById(userId, id) {
 }
 
 export async function createExpense(userId, payload) {
-    const validation = validateCreateOrUpdatePayload(payload);
-    if (!validation.ok) {
-        return validation;
-    }
+    const normalizedPayload = normalizeExpensePayload(payload);
 
     const created = await prisma.expense.create({
         data: {
-            ...validation.data,
+            ...normalizedPayload,
             userId
         }
     });
@@ -133,10 +82,7 @@ export async function createExpense(userId, payload) {
 }
 
 export async function updateExpense(userId, id, payload) {
-    const validation = validateCreateOrUpdatePayload(payload, { partial: true });
-    if (!validation.ok) {
-        return validation;
-    }
+    const normalizedPayload = normalizeExpensePayload(payload);
 
     const existing = await prisma.expense.findFirst({
         where: {
@@ -151,7 +97,7 @@ export async function updateExpense(userId, id, payload) {
 
     const updated = await prisma.expense.update({
         where: { id: existing.id },
-        data: validation.data
+        data: normalizedPayload
     });
 
     return { ok: true, status: 200, data: updated };

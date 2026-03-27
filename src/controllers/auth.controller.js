@@ -5,6 +5,7 @@ import {
     refreshAuthToken,
     registerUser
 } from '../services/auth.service.js';
+import { AppError } from '../errors/app-error.js';
 
 function getRefreshTokenFromRequest(req) {
     const bodyToken = req.body?.refreshToken;
@@ -22,88 +23,59 @@ function getRefreshTokenFromRequest(req) {
     return null;
 }
 
-export async function register(req, res) {
+export async function register(req, res, next) {
     try {
         const { firstName, lastName, email, password } = req.body;
-
-        if (!firstName || !lastName || !email || !password) {
-            return res.status(400).json({ message: 'First name, last name, email, and password are required' });
-        }
-
-        if (
-            typeof firstName !== 'string' ||
-            typeof lastName !== 'string' ||
-            typeof email !== 'string' ||
-            typeof password !== 'string'
-        ) {
-            return res.status(400).json({ message: 'First name, last name, email, and password must be strings' });
-        }
-
-        if (password.length < 6) {
-            return res.status(400).json({ message: 'Password must be at least 6 characters' });
-        }
 
         const result = await registerUser({ firstName, lastName, email, password });
 
         if (!result.ok) {
-            return res.status(result.status).json({ message: result.message });
+            throw new AppError(result.message, result.status);
         }
 
         return res.status(result.status).json(result.data);
     } catch (error) {
-        console.error('register error:', error);
-        return res.status(500).json({ message: 'Failed to register user' });
+        return next(error);
     }
 }
 
-export async function login(req, res) {
+export async function login(req, res, next) {
     try {
         const { email, password } = req.body;
-
-        if (!email || !password) {
-            return res.status(400).json({ message: 'Email and password are required' });
-        }
-
-        if (typeof email !== 'string' || typeof password !== 'string') {
-            return res.status(400).json({ message: 'Email and password must be strings' });
-        }
 
         const result = await loginUser({ email, password });
 
         if (!result.ok) {
-            return res.status(result.status).json({ message: result.message });
+            throw new AppError(result.message, result.status);
         }
 
         return res.status(result.status).json(result.data);
     } catch (error) {
-        return res.status(500).json({ message: 'Failed to login user' });
+        return next(error);
     }
 }
 
-export async function me(req, res) {
+export async function me(req, res, next) {
     try {
-        const result = await getUserPublicById(req.user.userId);
+        const result = await getUserPublicById(req.user.id);
 
         if (!result.ok) {
-            return res.status(result.status).json({ message: result.message });
+            throw new AppError(result.message, result.status);
         }
 
         return res.status(200).json(result.data);
     } catch (error) {
-        return res.status(500).json({ message: 'Failed to fetch current user' });
+        return next(error);
     }
 }
 
-export async function refresh(req, res) {
+export async function refresh(req, res, next) {
     try {
         const refreshToken = getRefreshTokenFromRequest(req);
         const result = await refreshAuthToken(refreshToken);
 
         if (!result.ok) {
-            return res.status(result.status).json({
-                success: false,
-                message: result.message
-            });
+            throw new AppError(result.message, result.status);
         }
 
         return res.status(result.status).json({
@@ -111,23 +83,17 @@ export async function refresh(req, res) {
             data: result.data
         });
     } catch (error) {
-        return res.status(500).json({
-            success: false,
-            message: 'Failed to refresh token'
-        });
+        return next(error);
     }
 }
 
-export async function logout(req, res) {
+export async function logout(req, res, next) {
     try {
         const refreshToken = getRefreshTokenFromRequest(req);
         const result = await logoutUser(refreshToken);
 
         if (!result.ok) {
-            return res.status(result.status).json({
-                success: false,
-                message: result.message
-            });
+            throw new AppError(result.message, result.status);
         }
 
         return res.status(result.status).json({
@@ -135,10 +101,7 @@ export async function logout(req, res) {
             data: result.data
         });
     } catch (error) {
-        return res.status(500).json({
-            success: false,
-            message: 'Failed to logout user'
-        });
+        return next(error);
     }
 }
 

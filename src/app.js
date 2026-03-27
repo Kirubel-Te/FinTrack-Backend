@@ -6,6 +6,7 @@ import router from './routes/auth.route.js'
 import incomeRoutes from './routes/income.routes.js'
 import expenseRoutes from './routes/expense.routes.js'
 import reportRoutes from './routes/report.routes.js'
+import { errorMiddleware } from './middlewares/error.middleware.js'
 
 const app = express()
 
@@ -23,5 +24,6 @@ app.use('/api/v1/auth', router)
 app.use('/api/v1/incomes', incomeRoutes)
 app.use('/api/v1/expenses', expenseRoutes)
 app.use('/api/v1/reports', reportRoutes)
+app.use(errorMiddleware)
 
 export default app

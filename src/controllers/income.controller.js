@@ -5,27 +5,15 @@ import {
     listIncomes,
     updateIncome
 } from '../services/income.service.js';
-import { parseTransactionListQueryParams } from '../utils/list-query.js';
+import { AppError } from '../errors/app-error.js';
 
-function sendError(res, status, message) {
-    return res.status(status).json({
-        success: false,
-        message
-    });
-}
-
-export async function getIncomes(req, res) {
+export async function getIncomes(req, res, next) {
     try {
-        const parsedQuery = parseTransactionListQueryParams(req.query);
-
-        if (!parsedQuery.ok) {
-            return sendError(res, parsedQuery.status || 400, parsedQuery.message || 'Invalid query params');
-        }
-
-        const result = await listIncomes(req.user.id, parsedQuery.data);
+        const query = req.validated?.query || req.query;
+        const result = await listIncomes(req.user.id, query);
 
         if (!result.ok) {
-            return sendError(res, result.status || 400, result.message || 'Failed to fetch incomes');
+            throw new AppError(result.message || 'Failed to fetch incomes', result.status || 400);
         }
 
         return res.status(200).json({
@@ -39,16 +27,16 @@ export async function getIncomes(req, res) {
             }
         });
     } catch (error) {
-        return sendError(res, 500, 'Failed to fetch incomes');
+        return next(error);
     }
 }
 
-export async function getIncome(req, res) {
+export async function getIncome(req, res, next) {
     try {
         const result = await getIncomeById(req.user.id, req.params.id);
 
         if (!result.ok) {
-            return sendError(res, result.status || 404, result.message || 'Income not found');
+            throw new AppError(result.message || 'Income not found', result.status || 404);
         }
 
         return res.status(200).json({
@@ -56,16 +44,16 @@ export async function getIncome(req, res) {
             data: result.data
         });
     } catch (error) {
-        return sendError(res, 500, 'Failed to fetch income');
+        return next(error);
     }
 }
 
-export async function createIncomeHandler(req, res) {
+export async function createIncomeHandler(req, res, next) {
     try {
         const result = await createIncome(req.user.id, req.body);
 
         if (!result.ok) {
-            return sendError(res, result.status || 400, result.message || 'Failed to create income');
+            throw new AppError(result.message || 'Failed to create income', result.status || 400);
         }
 
         return res.status(201).json({
@@ -73,16 +61,16 @@ export async function createIncomeHandler(req, res) {
             data: result.data
         });
     } catch (error) {
-        return sendError(res, 500, 'Failed to create income');
+        return next(error);
     }
 }
 
-export async function updateIncomeHandler(req, res) {
+export async function updateIncomeHandler(req, res, next) {
     try {
         const result = await updateIncome(req.user.id, req.params.id, req.body);
 
         if (!result.ok) {
-            return sendError(res, result.status || 400, result.message || 'Failed to update income');
+            throw new AppError(result.message || 'Failed to update income', result.status || 400);
         }
 
         return res.status(200).json({
@@ -90,16 +78,16 @@ export async function updateIncomeHandler(req, res) {
             data: result.data
         });
     } catch (error) {
-        return sendError(res, 500, 'Failed to update income');
+        return next(error);
     }
 }
 
-export async function deleteIncomeHandler(req, res) {
+export async function deleteIncomeHandler(req, res, next) {
     try {
         const result = await deleteIncome(req.user.id, req.params.id);
 
         if (!result.ok) {
-            return sendError(res, result.status || 404, result.message || 'Failed to delete income');
+            throw new AppError(result.message || 'Failed to delete income', result.status || 404);
         }
 
         return res.status(200).json({
@@ -107,6 +95,6 @@ export async function deleteIncomeHandler(req, res) {
             data: result.data
         });
     } catch (error) {
-        return sendError(res, 500, 'Failed to delete income');
+        return next(error);
     }
 }

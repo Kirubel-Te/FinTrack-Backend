@@ -7,15 +7,23 @@ import {
     updateExpenseHandler
 } from '../controllers/expense.controller.js';
 import { requireAuth } from '../middlewares/auth.middleware.js';
+import { validate } from '../middlewares/validate.middleware.js';
+import {
+    createExpenseSchema,
+    deleteExpenseSchema,
+    getExpenseSchema,
+    listExpensesSchema,
+    updateExpenseSchema
+} from '../validations/expense.validation.js';
 
 const router = express.Router();
 
 router.use(requireAuth);
 
-router.get('/', getExpenses);
-router.get('/:id', getExpense);
-router.post('/', createExpenseHandler);
-router.patch('/:id', updateExpenseHandler);
-router.delete('/:id', deleteExpenseHandler);
+router.get('/', validate(listExpensesSchema), getExpenses);
+router.get('/:id', validate(getExpenseSchema), getExpense);
+router.post('/', validate(createExpenseSchema), createExpenseHandler);
+router.patch('/:id', validate(updateExpenseSchema), updateExpenseHandler);
+router.delete('/:id', validate(deleteExpenseSchema), deleteExpenseHandler);
 
 export default router;
