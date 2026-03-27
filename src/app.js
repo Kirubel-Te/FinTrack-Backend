@@ -20,7 +20,6 @@ app.get('/',(req,res) => {
     res.status(200).json({message: 'Welcome to FinTrack API'})
 })
 
-app.use('/api/auth', router)
 app.use('/api/v1/auth', router)
 app.use('/api/v1/incomes', incomeRoutes)
 app.use('/api/v1/expenses', expenseRoutes)
