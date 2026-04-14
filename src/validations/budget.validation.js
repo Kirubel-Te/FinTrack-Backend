@@ -1,28 +1,48 @@
 import { z } from 'zod';
 import { uuidParamSchema } from './common.validation.js';
+import { EXPENSE_CATEGORIES, normalizeExpenseCategory } from '../constants/expense-categories.js';
 
 const periodSchema = z.enum(['monthly'], {
     message: 'period must be monthly'
 });
 
 const categorySchema = z
-    .union([z.string(), z.null()])
-    .optional()
-    .transform((value) => {
-        if (value === null || value === undefined) {
-            return null;
+    .string()
+    .trim()
+    .min(1, 'category is required')
+    .transform((value) => normalizeExpenseCategory(value))
+    .refine((value) => EXPENSE_CATEGORIES.includes(value), {
+        message: `category must be one of: ${EXPENSE_CATEGORIES.join(', ')}`
+    });
+
+const monthSchema = z
+    .preprocess((value) => {
+        if (value === undefined || value === null || value === '') {
+            return undefined;
         }
 
-        const trimmed = value.trim();
-        return trimmed || null;
-    });
+        return Number(value);
+    }, z.number().int().min(1).max(12))
+    .optional();
+
+const yearSchema = z
+    .preprocess((value) => {
+        if (value === undefined || value === null || value === '') {
+            return undefined;
+        }
+
+        return Number(value);
+    }, z.number().int().min(2000).max(3000))
+    .optional();
 
 const amountSchema = z.preprocess((value) => Number(value), z.number().positive('amount must be a positive number'));
 
 const budgetBodySchema = z.object({
     amount: amountSchema,
     period: periodSchema,
-    category: categorySchema
+    category: categorySchema,
+    month: monthSchema,
+    year: yearSchema
 });
 
 export const createBudgetSchema = z.object({
@@ -32,7 +52,9 @@ export const createBudgetSchema = z.object({
 export const listBudgetsSchema = z.object({
     query: z.object({
         period: periodSchema.optional(),
-        category: categorySchema
+        category: categorySchema.optional(),
+        month: monthSchema,
+        year: yearSchema
     })
 });
 
@@ -50,6 +72,8 @@ export const deleteBudgetSchema = z.object({
 export const budgetSummarySchema = z.object({
     query: z.object({
         period: periodSchema.optional(),
-        category: categorySchema
+        category: categorySchema.optional(),
+        month: monthSchema,
+        year: yearSchema
     })
 });

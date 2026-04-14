@@ -1,9 +1,17 @@
 import { z } from 'zod';
 import { transactionListQuerySchema, uuidParamSchema } from './common.validation.js';
+import { EXPENSE_CATEGORIES, normalizeExpenseCategory } from '../constants/expense-categories.js';
 
 const amountSchema = z.preprocess((value) => Number(value), z.number().positive('amount must be a positive number'));
 
-const categorySchema = z.string().trim().min(1, 'category must be non-empty');
+const categorySchema = z
+    .string()
+    .trim()
+    .min(1, 'category must be non-empty')
+    .transform((value) => normalizeExpenseCategory(value))
+    .refine((value) => EXPENSE_CATEGORIES.includes(value), {
+        message: `category must be one of: ${EXPENSE_CATEGORIES.join(', ')}`
+    });
 
 const dateSchema = z
     .coerce

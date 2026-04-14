@@ -3,6 +3,7 @@ import {
     buildPaginationMeta,
     buildTransactionListQuery
 } from './transaction-list-query.service.js';
+import { normalizeExpenseCategory } from '../constants/expense-categories.js';
 
 function normalizeExpensePayload(payload) {
     const data = {};
@@ -12,7 +13,7 @@ function normalizeExpensePayload(payload) {
     }
 
     if (Object.prototype.hasOwnProperty.call(payload, 'category')) {
-        data.category = payload.category.trim();
+        data.category = normalizeExpenseCategory(payload.category);
     }
 
     if (Object.prototype.hasOwnProperty.call(payload, 'date')) {
