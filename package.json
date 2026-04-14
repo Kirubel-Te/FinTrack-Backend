@@ -4,6 +4,8 @@
   "description": "",
   "main": "index.js",
   "scripts": {
+    "prisma:generate": "prisma generate",
+    "postinstall": "prisma generate",
     "test": "vitest run",
     "test:watch": "vitest",
     "dev": "nodemon src/server.js",
