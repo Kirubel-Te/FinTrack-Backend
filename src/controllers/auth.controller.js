@@ -1,4 +1,5 @@
 import {
+    deleteUserAccount,
     getUserPublicById,
     loginUser,
     logoutUser,
@@ -91,6 +92,23 @@ export async function logout(req, res, next) {
     try {
         const refreshToken = getRefreshTokenFromRequest(req);
         const result = await logoutUser(refreshToken);
+
+        if (!result.ok) {
+            throw new AppError(result.message, result.status);
+        }
+
+        return res.status(result.status).json({
+            success: true,
+            data: result.data
+        });
+    } catch (error) {
+        return next(error);
+    }
+}
+
+export async function deleteAccount(req, res, next) {
+    try {
+        const result = await deleteUserAccount(req.user.id);
 
         if (!result.ok) {
             throw new AppError(result.message, result.status);

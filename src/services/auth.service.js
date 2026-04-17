@@ -246,3 +246,30 @@ export async function getUserPublicById(userId) {
 		data: user
 	};
 }
+
+export async function deleteUserAccount(userId) {
+	const existingUser = await prisma.user.findUnique({
+		where: { id: userId },
+		select: { id: true }
+	});
+
+	if (!existingUser) {
+		return {
+			ok: false,
+			status: 404,
+			message: 'User not found'
+		};
+	}
+
+	await prisma.user.delete({
+		where: { id: existingUser.id }
+	});
+
+	return {
+		ok: true,
+		status: 200,
+		data: {
+			message: 'Account deleted successfully'
+		}
+	};
+}

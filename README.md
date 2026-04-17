@@ -296,6 +296,21 @@ Response:
 }
 ```
 
+#### DELETE /api/v1/auth/account
+
+Protected: Yes
+
+Response:
+
+```json
+{
+	"success": true,
+	"data": {
+		"message": "Account deleted successfully"
+	}
+}
+```
+
 ### Incomes
 
 Base path: /api/v1/incomes
