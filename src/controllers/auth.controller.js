@@ -4,7 +4,9 @@ import {
     loginUser,
     logoutUser,
     refreshAuthToken,
-    registerUser
+    registerUser,
+    updateUserPassword,
+    updateUserProfile
 } from '../services/auth.service.js';
 import { AppError } from '../errors/app-error.js';
 
@@ -109,6 +111,42 @@ export async function logout(req, res, next) {
 export async function deleteAccount(req, res, next) {
     try {
         const result = await deleteUserAccount(req.user.id);
+
+        if (!result.ok) {
+            throw new AppError(result.message, result.status);
+        }
+
+        return res.status(result.status).json({
+            success: true,
+            data: result.data
+        });
+    } catch (error) {
+        return next(error);
+    }
+}
+
+export async function updateProfile(req, res, next) {
+    try {
+        const { firstName, lastName, email } = req.body;
+        const result = await updateUserProfile(req.user.id, { firstName, lastName, email });
+
+        if (!result.ok) {
+            throw new AppError(result.message, result.status);
+        }
+
+        return res.status(result.status).json({
+            success: true,
+            data: result.data
+        });
+    } catch (error) {
+        return next(error);
+    }
+}
+
+export async function changePassword(req, res, next) {
+    try {
+        const { currentPassword, newPassword } = req.body;
+        const result = await updateUserPassword(req.user.id, { currentPassword, newPassword });
 
         if (!result.ok) {
             throw new AppError(result.message, result.status);

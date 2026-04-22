@@ -273,3 +273,122 @@ export async function deleteUserAccount(userId) {
 		}
 	};
 }
+
+export async function updateUserProfile(userId, { firstName, lastName, email }) {
+	const existingUser = await prisma.user.findUnique({
+		where: { id: userId }
+	});
+
+	if (!existingUser) {
+		return {
+			ok: false,
+			status: 404,
+			message: 'User not found'
+		};
+	}
+
+	const data = {};
+
+	if (firstName !== undefined) {
+		data.firstName = firstName.trim();
+	}
+
+	if (lastName !== undefined) {
+		data.lastName = lastName.trim();
+	}
+
+	if (email !== undefined) {
+		const normalizedEmail = email.trim().toLowerCase();
+
+		if (normalizedEmail !== existingUser.email) {
+			const emailOwner = await prisma.user.findUnique({
+				where: { email: normalizedEmail },
+				select: { id: true }
+			});
+
+			if (emailOwner && emailOwner.id !== userId) {
+				return {
+					ok: false,
+					status: 409,
+					message: 'Email is already registered'
+				};
+			}
+		}
+
+		data.email = normalizedEmail;
+	}
+
+	const updatedUser = await prisma.user.update({
+		where: { id: userId },
+		data,
+		select: {
+			id: true,
+			firstName: true,
+			lastName: true,
+			email: true,
+			createdAt: true
+		}
+	});
+
+	return {
+		ok: true,
+		status: 200,
+		data: updatedUser
+	};
+}
+
+export async function updateUserPassword(userId, { currentPassword, newPassword }) {
+	const existingUser = await prisma.user.findUnique({
+		where: { id: userId },
+		select: {
+			id: true,
+			password: true
+		}
+	});
+
+	if (!existingUser) {
+		return {
+			ok: false,
+			status: 404,
+			message: 'User not found'
+		};
+	}
+
+	const isCurrentPasswordValid = await bcrypt.compare(currentPassword, existingUser.password);
+
+	if (!isCurrentPasswordValid) {
+		return {
+			ok: false,
+			status: 401,
+			message: 'Current password is incorrect'
+		};
+	}
+
+	const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+	await prisma.$transaction([
+		prisma.user.update({
+			where: { id: userId },
+			data: {
+				password: hashedPassword
+			}
+		}),
+		prisma.refreshToken.updateMany({
+			where: {
+				userId,
+				revokedAt: null
+			},
+			data: {
+				revokedAt: new Date()
+			}
+		})
+	]);
+
+	return {
+		ok: true,
+		status: 200,
+		data: {
+			message: 'Password updated successfully. Please log in again.'
+		}
+	};
+}

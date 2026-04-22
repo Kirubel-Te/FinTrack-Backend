@@ -296,6 +296,65 @@ Response:
 }
 ```
 
+#### PATCH /api/v1/auth/profile
+
+Protected: Yes
+
+Request (send at least one field):
+
+```json
+{
+	"firstName": "John",
+	"lastName": "Doe",
+	"email": "john.new@example.com"
+}
+```
+
+Response:
+
+```json
+{
+	"success": true,
+	"data": {
+		"id": "...",
+		"firstName": "John",
+		"lastName": "Doe",
+		"email": "john.new@example.com",
+		"createdAt": "2026-03-27T12:00:00.000Z"
+	}
+}
+```
+
+#### PATCH /api/v1/auth/password
+
+Protected: Yes
+
+Request:
+
+```json
+{
+	"currentPassword": "secret123",
+	"newPassword": "newSecret123"
+}
+```
+
+Response:
+
+```json
+{
+	"success": true,
+	"data": {
+		"message": "Password updated successfully. Please log in again."
+	}
+}
+```
+
+Notes:
+
+- currentPassword must match the existing password.
+- newPassword must be at least 6 characters and different from currentPassword.
+- All active refresh tokens are revoked after password change, so the user should log in again.
+
 #### DELETE /api/v1/auth/account
 
 Protected: Yes
