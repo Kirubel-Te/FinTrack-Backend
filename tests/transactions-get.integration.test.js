@@ -37,8 +37,19 @@ function applyWhere(items, where = {}) {
             return false;
         }
 
-        if (where.category && item.category !== where.category) {
-            return false;
+        if (where.category) {
+            if (typeof where.category === 'string') {
+                if (item.category !== where.category) {
+                    return false;
+                }
+            } else if (where.category.contains) {
+                const itemCategory = String(item.category ?? '').toLowerCase();
+                const searchValue = String(where.category.contains ?? '').toLowerCase();
+
+                if (!itemCategory.includes(searchValue)) {
+                    return false;
+                }
+            }
         }
 
         if (where.date) {
@@ -49,6 +60,23 @@ function applyWhere(items, where = {}) {
             }
 
             if (where.date.lte && itemDate > where.date.lte) {
+                return false;
+            }
+        }
+
+        if (where.description && where.description.contains) {
+            const itemDescription = String(item.description ?? '').toLowerCase();
+            const searchValue = String(where.description.contains ?? '').toLowerCase();
+
+            if (!itemDescription.includes(searchValue)) {
+                return false;
+            }
+        }
+
+        if (Array.isArray(where.OR) && where.OR.length > 0) {
+            const matchesAny = where.OR.some((branch) => applyWhere([item], branch).length > 0);
+
+            if (!matchesAny) {
                 return false;
             }
         }
@@ -579,6 +607,101 @@ describe('GET /api/v1/reports', () => {
             where: { userId: 'user-1' },
             _sum: { amount: true }
         });
+    });
+
+    it('searches transactions and returns analytics', async () => {
+        db.incomes = [
+            {
+                id: 'in-1',
+                userId: 'user-1',
+                category: 'salary',
+                amount: 3000,
+                description: 'Monthly salary',
+                date: '2026-01-01T00:00:00.000Z'
+            },
+            {
+                id: 'in-2',
+                userId: 'user-1',
+                category: 'bonus',
+                amount: 500,
+                description: 'Rent reimbursement',
+                date: '2026-01-10T00:00:00.000Z'
+            },
+            {
+                id: 'in-other',
+                userId: 'user-2',
+                category: 'bonus',
+                amount: 800,
+                description: 'Rent reimbursement',
+                date: '2026-01-11T00:00:00.000Z'
+            }
+        ];
+
+        db.expenses = [
+            {
+                id: 'ex-1',
+                userId: 'user-1',
+                category: 'rent',
+                amount: 1200,
+                description: 'Apartment rent',
+                date: '2026-01-05T00:00:00.000Z'
+            },
+            {
+                id: 'ex-2',
+                userId: 'user-1',
+                category: 'food',
+                amount: 300,
+                description: 'Groceries',
+                date: '2026-01-07T00:00:00.000Z'
+            }
+        ];
+
+        const response = await auth(
+            request(app)
+                .get('/api/v1/reports/transactions/search')
+                .query({ keyword: 'rent', page: 1, limit: 10 })
+        );
+
+        expect(response.status).toBe(200);
+        expect(response.body).toEqual({
+            success: true,
+            data: {
+                records: [
+                    expect.objectContaining({
+                        id: 'in-2',
+                        transactionType: 'income',
+                        category: 'bonus',
+                        amount: 500
+                    }),
+                    expect.objectContaining({
+                        id: 'ex-1',
+                        transactionType: 'expense',
+                        category: 'rent',
+                        amount: 1200
+                    })
+                ],
+                analytics: {
+                    totalCount: 2,
+                    totalAmount: 1700,
+                    categoryBreakdown: [
+                        { category: 'rent', totalCount: 1, totalAmount: 1200 },
+                        { category: 'bonus', totalCount: 1, totalAmount: 500 }
+                    ],
+                    dateRange: {
+                        startDate: '2026-01-05T00:00:00.000Z',
+                        endDate: '2026-01-10T00:00:00.000Z'
+                    }
+                }
+            },
+            meta: {
+                page: 1,
+                limit: 10,
+                total: 2,
+                totalPages: 1
+            }
+        });
+
+        expect(response.body.data.records.map((record) => record.id)).toEqual(['in-2', 'ex-1']);
     });
 });
 

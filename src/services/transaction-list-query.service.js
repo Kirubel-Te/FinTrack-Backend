@@ -46,6 +46,54 @@ export function buildTransactionListQuery(userId, filters) {
     };
 }
 
+function normalizeSearchKeyword(keyword) {
+    if (typeof keyword !== 'string') {
+        return undefined;
+    }
+
+    const normalized = keyword.trim();
+    return normalized || undefined;
+}
+
+export function buildTransactionSearchQuery(userId, filters) {
+    const listQuery = buildTransactionListQuery(userId, filters);
+
+    if (!listQuery.ok) {
+        return listQuery;
+    }
+
+    const keyword = normalizeSearchKeyword(filters.keyword);
+    const where = {
+        ...listQuery.query.where
+    };
+
+    if (keyword) {
+        where.OR = [
+            {
+                description: {
+                    contains: keyword,
+                    mode: 'insensitive'
+                }
+            },
+            {
+                category: {
+                    contains: keyword,
+                    mode: 'insensitive'
+                }
+            }
+        ];
+    }
+
+    return {
+        ok: true,
+        query: {
+            ...listQuery.query,
+            where,
+            keyword
+        }
+    };
+}
+
 export function buildPaginationMeta({ page, limit, total }) {
     return {
         page,

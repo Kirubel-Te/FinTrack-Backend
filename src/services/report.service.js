@@ -1,7 +1,56 @@
 import prisma from '../config/prisma.js';
+import { buildPaginationMeta, buildTransactionSearchQuery } from './transaction-list-query.service.js';
 
 function toNumber(value) {
     return Number(value ?? 0);
+}
+
+function normalizeTransactionRecord(record, transactionType) {
+    return {
+        id: record.id,
+        transactionType,
+        amount: toNumber(record.amount),
+        category: record.category,
+        description: record.description ?? null,
+        date: new Date(record.date)
+    };
+}
+
+function buildCategoryBreakdown(records) {
+    const categories = new Map();
+
+    for (const record of records) {
+        const current = categories.get(record.category) ?? {
+            category: record.category,
+            totalCount: 0,
+            totalAmount: 0
+        };
+
+        current.totalCount += 1;
+        current.totalAmount += record.amount;
+
+        categories.set(record.category, current);
+    }
+
+    return Array.from(categories.values()).sort((left, right) => right.totalAmount - left.totalAmount);
+}
+
+function buildDateRangeStats(records) {
+    if (records.length === 0) {
+        return {
+            startDate: null,
+            endDate: null
+        };
+    }
+
+    const sortedDates = [...records]
+        .map((record) => new Date(record.date))
+        .sort((left, right) => left.getTime() - right.getTime());
+
+    return {
+        startDate: sortedDates[0].toISOString(),
+        endDate: sortedDates[sortedDates.length - 1].toISOString()
+    };
 }
 
 function getMonthDateRange(month) {
@@ -110,5 +159,48 @@ export async function getExpenseCategoriesReport(userId) {
             category: item.category,
             total: toNumber(item._sum.amount)
         }))
+    };
+}
+
+export async function searchTransactionsReport(userId, queryParams) {
+    const searchQuery = buildTransactionSearchQuery(userId, queryParams);
+
+    if (!searchQuery.ok) {
+        return searchQuery;
+    }
+
+    const { where, skip, take, page, limit } = searchQuery.query;
+
+    const [incomeItems, expenseItems] = await Promise.all([
+        prisma.income.findMany({
+            where,
+            orderBy: { date: 'desc' }
+        }),
+        prisma.expense.findMany({
+            where,
+            orderBy: { date: 'desc' }
+        })
+    ]);
+
+    const allRecords = [
+        ...incomeItems.map((item) => normalizeTransactionRecord(item, 'income')),
+        ...expenseItems.map((item) => normalizeTransactionRecord(item, 'expense'))
+    ].sort((left, right) => right.date.getTime() - left.date.getTime());
+
+    const records = allRecords.slice(skip, skip + take);
+
+    return {
+        ok: true,
+        status: 200,
+        data: {
+            records,
+            analytics: {
+                totalCount: allRecords.length,
+                totalAmount: allRecords.reduce((sum, record) => sum + record.amount, 0),
+                categoryBreakdown: buildCategoryBreakdown(allRecords),
+                dateRange: buildDateRangeStats(allRecords)
+            }
+        },
+        meta: buildPaginationMeta({ page, limit, total: allRecords.length })
     };
 }

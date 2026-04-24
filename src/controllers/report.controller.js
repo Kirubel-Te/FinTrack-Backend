@@ -1,7 +1,8 @@
 import {
     getExpenseCategoriesReport,
     getMonthlySummaryReport,
-    getSummaryReport
+    getSummaryReport,
+    searchTransactionsReport
 } from '../services/report.service.js';
 import { AppError } from '../errors/app-error.js';
 
@@ -51,6 +52,25 @@ export async function getCategories(req, res, next) {
         return res.status(200).json({
             success: true,
             data: result.data
+        });
+    } catch (error) {
+        return next(error);
+    }
+}
+
+export async function searchTransactions(req, res, next) {
+    try {
+        const query = req.validated?.query || req.query;
+        const result = await searchTransactionsReport(req.user.id, query);
+
+        if (!result.ok) {
+            throw new AppError(result.message || 'Failed to search transactions', result.status || 400);
+        }
+
+        return res.status(200).json({
+            success: true,
+            data: result.data,
+            meta: result.meta
         });
     } catch (error) {
         return next(error);
