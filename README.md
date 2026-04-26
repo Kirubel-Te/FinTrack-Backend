@@ -117,6 +117,16 @@ Error responses are centralized and always follow:
 4. If request returns 401, call refresh endpoint and retry with new access token.
 5. On logout, call logout endpoint with refresh token and clear local session.
 
+Recent endpoints added to the frontend flow:
+
+- `POST /api/v1/auth/logout` for server-side refresh token revocation
+- `GET /api/v1/auth/me` to fetch the current user profile
+- `PATCH /api/v1/auth/profile` to update first name, last name, or email
+- `PATCH /api/v1/auth/password` to change the password and revoke active sessions
+- `DELETE /api/v1/auth/account` to delete the authenticated user account
+- `GET /api/v1/reports/transactions/search` to search incomes and expenses together
+- `GET /api/v1/budgets/summary` to load budget usage and spending status
+
 Example Axios interceptor strategy:
 
 ```js
@@ -162,6 +172,39 @@ api.interceptors.response.use(
 );
 
 export default api;
+```
+
+Example calls for the newer endpoints:
+
+```js
+// Current user profile
+const meRes = await api.get('/auth/me');
+
+// Update profile
+await api.patch('/auth/profile', {
+	firstName: 'John',
+	lastName: 'Doe',
+	email: 'john.new@example.com'
+});
+
+// Change password
+await api.patch('/auth/password', {
+	currentPassword: 'secret123',
+	newPassword: 'newSecret123'
+});
+
+// Logout
+await api.post('/auth/logout', { refreshToken: localStorage.getItem('refreshToken') });
+
+// Transaction search
+const searchRes = await api.get('/reports/transactions/search', {
+	params: { keyword: 'rent', page: 1, limit: 10 }
+});
+
+// Budget summary
+const budgetSummaryRes = await api.get('/budgets/summary', {
+	params: { period: 'monthly', month: 3, year: 2026 }
+});
 ```
 
 ## API Endpoints
@@ -511,6 +554,43 @@ Response:
 }
 ```
 
+#### GET /transactions/search
+
+Query params:
+
+- page (positive integer, default 1)
+- limit (positive integer, default 10, max 100)
+- category (optional)
+- startDate (optional valid date)
+- endDate (optional valid date)
+- keyword (optional search term for description/category)
+
+Response:
+
+```json
+{
+	"success": true,
+	"data": {
+		"records": [],
+		"analytics": {
+			"totalCount": 0,
+			"totalAmount": 0,
+			"categoryBreakdown": [],
+			"dateRange": {
+				"startDate": null,
+				"endDate": null
+			}
+		}
+	},
+	"meta": {
+		"page": 1,
+		"limit": 10,
+		"total": 0,
+		"totalPages": 0
+	}
+}
+```
+
 ### Budgets
 
 Base path: /api/v1/budgets
@@ -564,6 +644,8 @@ Optional query params:
 
 - period (default monthly)
 - category (optional)
+- month (optional, defaults to current month)
+- year (optional, defaults to current year)
 
 Response:
 
@@ -577,10 +659,57 @@ Response:
 		"usage": 75,
 		"status": "within_budget",
 		"period": "monthly",
+		"month": 3,
+		"year": 2026,
 		"category": null
 	}
 }
 ```
+
+### Recent Auth Endpoints
+
+Base path: /api/v1/auth
+Protected: Yes for profile, password, me, and account deletion
+
+#### GET /me
+
+Use this after login or page reload to hydrate the current session user.
+
+#### PATCH /profile
+
+Send any subset of `firstName`, `lastName`, and `email`.
+
+Frontend behavior:
+
+- Update the in-memory user state after a successful response.
+- If email changes, consider forcing a session refresh in the UI.
+
+#### PATCH /password
+
+Use this in account settings.
+
+Frontend behavior:
+
+- After success, clear stored tokens and redirect to login.
+- The backend revokes active refresh tokens automatically.
+
+#### DELETE /account
+
+Use this for account removal flows.
+
+Frontend behavior:
+
+- Ask for confirmation before calling this endpoint.
+- Clear local session state after success.
+
+#### POST /logout
+
+Use this on explicit logout and when the user signs out from all devices.
+
+Frontend behavior:
+
+- Send the stored refresh token.
+- Remove access and refresh tokens from storage after success.
 
 Budget status values:
 
