@@ -1,6 +1,7 @@
 import { Prisma } from '@prisma/client';
 import { ZodError } from 'zod';
 import { AppError } from '../errors/app-error.js';
+import logger from '../utils/logger.js';
 
 function sendErrorResponse(res, statusCode, message) {
     return res.status(statusCode).json({
@@ -62,7 +63,7 @@ export function errorMiddleware(error, _req, res, _next) {
     const message = error?.message && statusCode < 500 ? error.message : 'Internal server error';
 
     if (statusCode >= 500) {
-        console.error(error);
+        logger.error(error);
     }
 
     return sendErrorResponse(res, statusCode, message);
