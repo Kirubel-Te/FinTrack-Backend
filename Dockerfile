@@ -9,7 +9,7 @@ RUN npm ci --ignore-scripts
 # Copy source
 COPY . .
 
-RUN npx prisma generate
+RUN DATABASE_URL=postgresql://user:password@localhost:5432/fintrack?schema=public npx prisma generate
 RUN npm prune --omit=dev
 
 ENV NODE_ENV=production
