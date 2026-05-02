@@ -5,6 +5,7 @@
   "main": "index.js",
   "scripts": {
     "prisma:generate": "prisma generate",
+    "migrate:deploy": "prisma migrate deploy",
     "postinstall": "node scripts/prisma-generate-if-available.cjs",
     "test": "vitest run",
     "test:watch": "vitest",

@@ -39,7 +39,9 @@ cp .env.example .env
 
 ```env
 DATABASE_URL=postgresql://USER:PASSWORD@HOST:5432/DB_NAME
+CORS_ORIGIN=http://localhost:5173
 PORT=3000
+NODE_ENV=development
 
 JWT_SECRET=your_access_secret
 JWT_EXPIRES_IN=15m
@@ -48,6 +50,13 @@ JWT_REFRESH_SECRET=your_refresh_secret
 JWT_REFRESH_EXPIRES_IN=7d
 REFRESH_TOKEN_TTL_DAYS=7
 ```
+
+For Render deployment:
+
+- Set `DATABASE_URL` to the Render internal database URL for the backend service running on Render.
+- Keep the Render external database URL for local development or any runtime outside Render.
+- Set `CORS_ORIGIN` to your frontend app URL.
+- Run `npm run migrate:deploy` as the Render pre-deploy command so a fresh database gets the schema before the app starts.
 
 4. Run migrations
 

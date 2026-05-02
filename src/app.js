@@ -11,10 +11,16 @@ import { errorMiddleware } from './middlewares/error.middleware.js'
 
 const app = express()
 
+const corsOrigins = process.env.CORS_ORIGIN
+    ? process.env.CORS_ORIGIN.split(',').map((origin) => origin.trim()).filter(Boolean)
+    : true
+
+app.set('trust proxy', 1)
+
 app.use(express.json())
-app.use(cors())
+app.use(cors({ origin: corsOrigins }))
 app.use(helmet())
-app.use(morgan("dev"))
+app.use(morgan(process.env.NODE_ENV === 'production' ? 'combined' : 'dev'))
 
 app.get('/',(req,res) => {
     res.status(200).json({message: 'Welcome to FinTrack API'})

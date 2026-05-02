@@ -2,15 +2,15 @@ FROM node:20-alpine
 
 WORKDIR /usr/src/app
 
-# Install dependencies (production). If you want dev deps, change to npm ci
+# Install dependencies, generate Prisma client, then remove dev dependencies.
 COPY package*.json ./
-RUN npm ci --production
+RUN npm ci
 
 # Copy source
 COPY . .
 
-# Try to generate Prisma client if possible (safe fallback if Prisma not installed)
-RUN node scripts/prisma-generate-if-available.cjs || true
+RUN npx prisma generate
+RUN npm prune --omit=dev
 
 ENV NODE_ENV=production
 EXPOSE 3000
