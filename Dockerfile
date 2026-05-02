@@ -4,7 +4,7 @@ WORKDIR /usr/src/app
 
 # Install dependencies, generate Prisma client, then remove dev dependencies.
 COPY package*.json ./
-RUN npm ci
+RUN npm ci --ignore-scripts
 
 # Copy source
 COPY . .
