@@ -82,6 +82,17 @@ Health check:
 GET /
 ```
 
+## Deployment
+
+- **Live instance:** https://fintrack-backend-5r98.onrender.com
+- **Base URL (deployed):** https://fintrack-backend-5r98.onrender.com/api/v1
+- **Health check (deployed):** `GET https://fintrack-backend-5r98.onrender.com/`
+
+- Notes:
+	- This instance is deployed on Render. Ensure `DATABASE_URL` and any required environment variables are configured in the Render service settings.
+	- Keep `CORS_ORIGIN` set to your frontend app URL when interacting with the deployed backend.
+	- For production frontends, use the deployed `Base URL (deployed)` as the API base; for local development use `http://localhost:3000`.
+
 ## Authentication Model
 
 - Protected endpoints require:
