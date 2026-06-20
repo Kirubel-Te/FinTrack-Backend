@@ -105,6 +105,12 @@ Authorization: Bearer <accessToken>
 	- In body as refreshToken
 	- Or in Authorization header as Bearer refreshToken
 
+## Deployment
+The app is deployed on Vercel and available here:
+
+- Live app: https://fin-track-app8.vercel.app/
+- backend deployment: https://fintrack-backend-1-xyn7.onrender.com
+
 ## API Response Conventions
 
 Successful responses:
