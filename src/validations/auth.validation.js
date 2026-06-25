@@ -24,14 +24,6 @@ export const loginSchema = z.object({
     })
 });
 
-export const refreshTokenBodySchema = z.object({
-    body: z
-        .object({
-            refreshToken: z.string().trim().min(1, 'refreshToken cannot be empty').optional()
-        })
-        .default({})
-});
-
 export const updateProfileSchema = z.object({
     body: z
         .object({
