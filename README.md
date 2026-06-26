@@ -4,7 +4,7 @@ REST API for personal finance management with authentication, transaction tracki
 
 ## Features
 
-- JWT authentication with refresh token rotation
+- JWT authentication with access tokens only
 - Income CRUD with filters and pagination
 - Expense CRUD with filters and pagination
 - Financial reports (summary, monthly summary, category aggregation)
@@ -45,10 +45,6 @@ NODE_ENV=development
 
 JWT_SECRET=your_access_secret
 JWT_EXPIRES_IN=15m
-
-JWT_REFRESH_SECRET=your_refresh_secret
-JWT_REFRESH_EXPIRES_IN=7d
-REFRESH_TOKEN_TTL_DAYS=7
 ```
 
 For Render deployment:
@@ -101,9 +97,8 @@ GET /
 Authorization: Bearer <accessToken>
 ```
 
-- Refresh token can be provided either:
-	- In body as refreshToken
-	- Or in Authorization header as Bearer refreshToken
+- Access tokens are the only auth token issued by the backend.
+- When an access token expires, the user must log in again.
 
 ## Deployment
 The app is deployed on Vercel and available here:
@@ -138,14 +133,14 @@ Error responses are centralized and always follow:
 ## Frontend Integration Flow
 
 1. Register or login.
-2. Save accessToken and refreshToken securely.
+2. Save accessToken securely.
 3. Send access token in Authorization header for protected APIs.
-4. If request returns 401, call refresh endpoint and retry with new access token.
-5. On logout, call logout endpoint with refresh token and clear local session.
+4. If request returns 401, redirect the user to the login screen.
+5. On logout, call the logout endpoint and clear local session.
 
 Recent endpoints added to the frontend flow:
 
-- `POST /api/v1/auth/logout` for server-side refresh token revocation
+- `POST /api/v1/auth/logout` to clear the current session on the client
 - `GET /api/v1/auth/me` to fetch the current user profile
 - `PATCH /api/v1/auth/profile` to update first name, last name, or email
 - `PATCH /api/v1/auth/password` to change the password and revoke active sessions
@@ -175,22 +170,8 @@ api.interceptors.response.use(
 	async (error) => {
 		const original = error.config;
 		if (error.response?.status === 401 && !original._retry) {
-			original._retry = true;
-			const refreshToken = localStorage.getItem("refreshToken");
-
-			const refreshRes = await axios.post(
-				"http://localhost:3000/api/v1/auth/refresh",
-				{ refreshToken }
-			);
-
-			const newAccess = refreshRes.data.data.accessToken;
-			const newRefresh = refreshRes.data.data.refreshToken;
-
-			localStorage.setItem("accessToken", newAccess);
-			localStorage.setItem("refreshToken", newRefresh);
-
-			original.headers.Authorization = `Bearer ${newAccess}`;
-			return axios(original);
+			localStorage.removeItem("accessToken");
+			window.location.href = "/login";
 		}
 
 		return Promise.reject(error);
@@ -220,7 +201,7 @@ await api.patch('/auth/password', {
 });
 
 // Logout
-await api.post('/auth/logout', { refreshToken: localStorage.getItem('refreshToken') });
+await api.post('/auth/logout');
 
 // Transaction search
 const searchRes = await api.get('/reports/transactions/search', {
@@ -274,8 +255,7 @@ Response:
 		"email": "john@example.com",
 		"createdAt": "2026-03-27T12:00:00.000Z"
 	},
-	"accessToken": "...",
-	"refreshToken": "..."
+	"accessToken": "..."
 }
 ```
 
@@ -301,42 +281,13 @@ Response:
 		"email": "john@example.com",
 		"createdAt": "2026-03-27T12:00:00.000Z"
 	},
-	"accessToken": "...",
-	"refreshToken": "..."
-}
-```
-
-#### POST /api/v1/auth/refresh
-
-Request:
-
-```json
-{
-	"refreshToken": "..."
-}
-```
-
-Response:
-
-```json
-{
-	"success": true,
-	"data": {
-		"accessToken": "...",
-		"refreshToken": "..."
-	}
+	"accessToken": "..."
 }
 ```
 
 #### POST /api/v1/auth/logout
 
-Request:
-
-```json
-{
-	"refreshToken": "..."
-}
-```
+Request: no body required.
 
 Response:
 
@@ -422,7 +373,7 @@ Notes:
 
 - currentPassword must match the existing password.
 - newPassword must be at least 6 characters and different from currentPassword.
-- All active refresh tokens are revoked after password change, so the user should log in again.
+- The user should log in again after password change.
 
 #### DELETE /api/v1/auth/account
 
@@ -717,7 +668,7 @@ Use this in account settings.
 Frontend behavior:
 
 - After success, clear stored tokens and redirect to login.
-- The backend revokes active refresh tokens automatically.
+- The backend does not issue refresh tokens, so the user must log in again.
 
 #### DELETE /account
 
@@ -734,8 +685,8 @@ Use this on explicit logout and when the user signs out from all devices.
 
 Frontend behavior:
 
-- Send the stored refresh token.
-- Remove access and refresh tokens from storage after success.
+- Send no refresh token.
+- Remove the access token from storage after success.
 
 Budget status values:
 
@@ -764,14 +715,14 @@ Budget status values:
 ## Common Error Cases for Frontend Handling
 
 - 400: validation errors or invalid request
-- 401: invalid/expired token, invalid credentials, invalid refresh token
+- 401: invalid/expired token or invalid credentials
 - 404: resource not found
 - 409: duplicate resource conflict (example: duplicate budget config)
 - 500: internal server error
 
 Suggested frontend behavior:
 
-- On 401 from protected endpoints, try refresh once, then force logout.
+- On 401 from protected endpoints, clear the session and redirect to login.
 - Show API message directly for 400 and 409.
 - For 500, show generic fallback UI message.
 
